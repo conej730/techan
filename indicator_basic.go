@@ -28,6 +28,22 @@ func (cpi closePriceIndicator) Calculate(index int) big.Decimal {
 	return cpi.Candles[index].ClosePrice
 }
 
+type intraCandleClosePriceIndicator struct {
+	series *TimeSeries
+	window int
+}
+
+func NewIntraCandleClosePriceIndicator(series *TimeSeries, window int) Indicator {
+	return intraCandleClosePriceIndicator{series, window}
+}
+
+func (cpi intraCandleClosePriceIndicator) Calculate(index int) big.Decimal {
+	if index == cpi.series.LastIndex() {
+		return NewEMAIndicator(NewClosePriceIndicator(cpi.series), cpi.window).Calculate(index)
+	}
+	return cpi.series.Candles[index].ClosePrice
+}
+
 type highPriceIndicator struct {
 	*TimeSeries
 }

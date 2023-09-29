@@ -51,6 +51,9 @@ func NewMinusDiIndicator(minusDm Indicator, series *TimeSeries, window int) Indi
 
 func (mdi *minusDiIndicator) Calculate(index int) big.Decimal {
 	atr := NewSimpleMovingAverage(NewTrueRangeIndicator(mdi.series), mdi.window).Calculate(index)
+	if atr.EQ(big.ZERO) {
+		return big.ZERO
+	}
 	return NewEMAIndicator(mdi.minusDm, mdi.window).Calculate(index).Div(atr).Mul(big.NewFromInt(100))
 }
 
@@ -70,6 +73,9 @@ func NewPlusDiIndicator(plusDm Indicator, series *TimeSeries, window int) Indica
 
 func (pdi *plusDiIndicator) Calculate(index int) big.Decimal {
 	atr := NewSimpleMovingAverage(NewTrueRangeIndicator(pdi.series), pdi.window).Calculate(index)
+	if atr.EQ(big.ZERO) {
+		return big.ZERO
+	}
 	return NewEMAIndicator(pdi.plusDm, pdi.window).Calculate(index).Div(atr).Mul(big.NewFromInt(100))
 }
 
@@ -93,6 +99,9 @@ func (dxi *dxIndicator) Calculate(index int) big.Decimal {
 	}
 	plusDi := dxi.plusDi.Calculate(index)
 	minusDi := dxi.minusDi.Calculate(index)
+	if plusDi.EQ(big.ZERO) && minusDi.EQ(big.ZERO) {
+		return big.ZERO
+	}
 	return (plusDi.Sub(minusDi).Abs()).Div((plusDi.Add(minusDi).Abs())).Mul(big.NewFromInt(100))
 }
 
