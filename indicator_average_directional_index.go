@@ -10,16 +10,16 @@ type adxIndicator struct {
 	// unstablePeriod int
 }
 
-func NewADXIndicator(series *TimeSeries, window int, unstablePeriod int) Indicator {
+func NewADXAndDIIndicator(series *TimeSeries, window int, unstablePeriod int) TripleIndicator {
 	return &adxIndicator{
 		series: series,
 		window: window,
 	}
 }
 
-func (adxi *adxIndicator) Calculate(index int) big.Decimal {
+func (adxi *adxIndicator) Calculate(index int) (big.Decimal, big.Decimal, big.Decimal) {
 	if index < adxi.window {
-		return big.ZERO
+		return big.ZERO, big.ZERO, big.ZERO
 	}
 
 	minusDm := NewMinusDMIndicator(adxi.series, adxi.window)
@@ -32,13 +32,14 @@ func (adxi *adxIndicator) Calculate(index int) big.Decimal {
 	adx := NewAdxRawIndicator(dx, adxi.window)
 	adx_smooth := NewEMAIndicator(adx, adxi.window)
 
-	return adx_smooth.Calculate(index)
+	return adx_smooth.Calculate(index), plusDi.Calculate(index), minusDi.Calculate(index)
 }
 
 type minusDiIndicator struct {
-	minusDm Indicator
-	series  *TimeSeries
-	window  int
+	minusDm     Indicator
+	series      *TimeSeries
+	window      int
+	resultCache resultCache
 }
 
 func NewMinusDiIndicator(minusDm Indicator, series *TimeSeries, window int) Indicator {
@@ -50,17 +51,39 @@ func NewMinusDiIndicator(minusDm Indicator, series *TimeSeries, window int) Indi
 }
 
 func (mdi *minusDiIndicator) Calculate(index int) big.Decimal {
+	if cachedValue := returnIfCached(mdi, index, func(i int) big.Decimal {
+		atr := NewSimpleMovingAverage(NewTrueRangeIndicator(mdi.series), mdi.window).Calculate(index)
+		if atr.EQ(big.ZERO) {
+			return big.ZERO
+		}
+		return NewEMAIndicator(mdi.minusDm, mdi.window).Calculate(index).Div(atr).Mul(big.NewFromInt(100))
+	}); cachedValue != nil {
+		return *cachedValue
+	}
 	atr := NewSimpleMovingAverage(NewTrueRangeIndicator(mdi.series), mdi.window).Calculate(index)
 	if atr.EQ(big.ZERO) {
 		return big.ZERO
 	}
-	return NewEMAIndicator(mdi.minusDm, mdi.window).Calculate(index).Div(atr).Mul(big.NewFromInt(100))
+	minusDi := NewEMAIndicator(mdi.minusDm, mdi.window).Calculate(index).Div(atr).Mul(big.NewFromInt(100))
+
+	cacheResult(mdi, index, minusDi)
+
+	return minusDi
 }
 
+func (mdi minusDiIndicator) cache() resultCache { return mdi.resultCache }
+
+func (mdi *minusDiIndicator) setCache(newCache resultCache) {
+	mdi.resultCache = newCache
+}
+
+func (mdi minusDiIndicator) windowSize() int { return mdi.window }
+
 type plusDiIndicator struct {
-	plusDm Indicator
-	series *TimeSeries
-	window int
+	plusDm      Indicator
+	series      *TimeSeries
+	window      int
+	resultCache resultCache
 }
 
 func NewPlusDiIndicator(plusDm Indicator, series *TimeSeries, window int) Indicator {
@@ -72,12 +95,33 @@ func NewPlusDiIndicator(plusDm Indicator, series *TimeSeries, window int) Indica
 }
 
 func (pdi *plusDiIndicator) Calculate(index int) big.Decimal {
+	if cachedValue := returnIfCached(pdi, index, func(i int) big.Decimal {
+		atr := NewSimpleMovingAverage(NewTrueRangeIndicator(pdi.series), pdi.window).Calculate(index)
+		if atr.EQ(big.ZERO) {
+			return big.ZERO
+		}
+		return NewEMAIndicator(pdi.plusDm, pdi.window).Calculate(index).Div(atr).Mul(big.NewFromInt(100))
+	}); cachedValue != nil {
+		return *cachedValue
+	}
 	atr := NewSimpleMovingAverage(NewTrueRangeIndicator(pdi.series), pdi.window).Calculate(index)
 	if atr.EQ(big.ZERO) {
 		return big.ZERO
 	}
-	return NewEMAIndicator(pdi.plusDm, pdi.window).Calculate(index).Div(atr).Mul(big.NewFromInt(100))
+	plusDi := NewEMAIndicator(pdi.plusDm, pdi.window).Calculate(index).Div(atr).Mul(big.NewFromInt(100))
+
+	cacheResult(pdi, index, plusDi)
+
+	return plusDi
 }
+
+func (pdi plusDiIndicator) cache() resultCache { return pdi.resultCache }
+
+func (pdi *plusDiIndicator) setCache(newCache resultCache) {
+	pdi.resultCache = newCache
+}
+
+func (pdi plusDiIndicator) windowSize() int { return pdi.window }
 
 type dxIndicator struct {
 	plusDi  Indicator
