@@ -64,9 +64,10 @@ func TestADXIndicator(t *testing.T) {
 		21,
 	}
 
-	adxIndicator := NewADXIndicator(series, 14, 0)
+	adxIndicator := NewADXAndDIIndicator(series, 14, 0)
 
 	for i := 13; i < len(candles); i++ {
-		assert.EqualValues(t, math.Round(adxIndicator.Calculate(i).Float()), expected[i-13])
+		adx, _, _ := adxIndicator.Calculate(i)
+		assert.EqualValues(t, math.Round(adx.Float()), expected[i-13])
 	}
 }

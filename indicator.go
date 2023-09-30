@@ -8,3 +8,7 @@ import "github.com/sdcoffey/big"
 type Indicator interface {
 	Calculate(int) big.Decimal
 }
+
+type TripleIndicator interface {
+	Calculate(int) (big.Decimal, big.Decimal, big.Decimal)
+}
